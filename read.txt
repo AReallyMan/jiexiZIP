@@ -1,0 +1,4 @@
+注意
+1.run.bat 文件和jar文件，配置文件必须放在一个目录下
+2.run.bat 运行如果失败，请检查路径（相对路径）
+3.systemMessage java文件，可以读取system.properties配置文件中的配置信息，注意配置文件中zip包的路径，c:\zip错误，应该是c:/zip或者c:\\zip

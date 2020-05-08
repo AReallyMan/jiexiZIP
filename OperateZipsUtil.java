@@ -8,7 +8,10 @@ import java.nio.file.Paths;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-
+/**
+ * @author zhangyangyang
+ * @create 2020/05/08
+ */
 public class OperateZipsUtil {
     public static void main(String[] args) throws IOException, ZipException {
         modifyFile();

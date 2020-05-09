@@ -62,6 +62,8 @@ public class OperateZipsUtil {
                 if (zipMsg) {
                     String inZipFileName = readZipFileName(newPath);
                     temp=basic_url+File.separator+"portiaTemp";
+                    String basicPath = temp + File.separator + inZipFileName + File.separator;
+
                     File file = new File(temp);
                     if (!file.isDirectory() || !file.exists()) {
                         file.mkdirs();
@@ -69,8 +71,7 @@ public class OperateZipsUtil {
                     //1解压
                     decompression(newPath, temp);
                     //2修改
-                    String basicPath = temp + File.separator + inZipFileName + File.separator;
-                    SettingUpdateFile(basicPath + "settings.py", basicPath + "pipelines.py",basicPath+"items.py", inZipFileName);
+                    SettingUpdateFile(basicPath + "settings.py", basicPath + "pipelines.py",basicPath+"items.py", inZipFileName,basicPath);
                     //3压缩
                     zip(newZip+File.separator+fname.getName(),temp,false);
                     //4删除文件
@@ -83,27 +84,6 @@ public class OperateZipsUtil {
         }
     }
     /**
-     * 删除zip
-     * @param zipLocation
-     */
-    public void deleteZIP(String zipLocation){
-        //压缩文件存放的位置
-        File fi=new File(zipLocation);
-        if (fi.isDirectory()) {
-            File[] files = fi.listFiles();
-            for (File f : files) {
-                // zip文件判断是否存在
-                if (f.getName().endsWith(".zip")) {
-                    if(f.delete()) {
-                        System.out.println("zip文件成功被删除");
-                    }else{
-                        System.out.println("zip文件删除失败");
-                    }
-                }
-            }
-        }
-    }
-    /**
      * 更新、修改setting、item、pipelines文件的内容
      * @param settingsPath
      * @param pipelinesPath
@@ -111,20 +91,14 @@ public class OperateZipsUtil {
      * @param unZipfileName
      * @throws IOException
      */
-    public static void SettingUpdateFile(String settingsPath,String pipelinesPath,String itemsPath, String unZipfileName) throws IOException {
-        String settingFile=new String(Files.readAllBytes(Paths.get(settingsPath)),"UTF-8");
-        String updateSettingFile = settingFile.replaceAll("ROBOTSTXT_OBEY = True", "ROBOTSTXT_OBEY = False");
-        StringBuilder sb=new StringBuilder(updateSettingFile);
-
-        String itemFile=new String(Files.readAllBytes(Paths.get(itemsPath)),"UTF-8");
-        String updateItemsFile=itemFile.replaceAll("pass","");
-        StringBuilder isb=new StringBuilder(updateItemsFile);
-
-        String pipelinesFile=new String(Files.readAllBytes(Paths.get(pipelinesPath)),"UTF-8");
-        String updatePipelinesFile=pipelinesFile.replace("# Define your item pipelines here",SystemMessage.getString("pipelinesImportContent"));
-        StringBuilder psb=new StringBuilder(updatePipelinesFile);
-
-        File file1=new File(new File(settingsPath).getParent());
+    public static void SettingUpdateFile(String settingsPath,String pipelinesPath,String itemsPath, String unZipfileName, String basicPath) throws IOException {
+        //setting
+        StringBuilder sb = updateFileContent(settingsPath, "ROBOTSTXT_OBEY = True", "ROBOTSTXT_OBEY = False");
+        //item
+        StringBuilder isb = updateFileContent(itemsPath, "pass", "");
+        //pipelines
+        StringBuilder psb = updateFileContent(pipelinesPath, "# Define your item pipelines here", SystemMessage.getString("pipelinesImportContent"));
+        //File file1=new File(new File(settingsPath).getParent());
         String sMongo="\n\t"+"'"+unZipfileName+".pipelines.MongoPipeline': 300,";
         String str3="ITEM_PIPELINES = {";
         String str4="\n}\n";
@@ -138,6 +112,10 @@ public class OperateZipsUtil {
         writerFile(settingsPath,settingContent,true);
         writerFile(settingsPath,settingConfigureContent,true);
         writerFile(pipelinesPath,pipelinesContent,true);
+        //4pipelines
+        String spiderMainName = getSpiderName(basicPath);
+        StringBuilder psbSpiderName = updateFileContent(pipelinesPath, "portia_govInfo", spiderMainName);
+        writerFile(pipelinesPath,psbSpiderName.toString(),false);
         //writerFile(itemsPath,itemContent,true);
     }
     /**
@@ -164,24 +142,27 @@ public class OperateZipsUtil {
      */
     public static boolean getZIPMsg(String zipPath) throws IOException {
         boolean flag=false;
-        FileInputStream input = new FileInputStream(zipPath);
-        //获取ZIP输入流(一定要指定字符集Charset.forName("GBK")否则会报java.lang.IllegalArgumentException: MALFORMED)
-        ZipInputStream zipInputStream = new ZipInputStream(new BufferedInputStream(input), Charset.forName("GBK"));
-        //定义ZipEntry置为null,避免由于重复调用zipInputStream.getNextEntry造成的不必要的问题
-        ZipEntry ze = null;
-        //循环遍历
-        while ((ze = zipInputStream.getNextEntry()) != null) {
-            String name = ze.getName();
-            if(name.split("/").length==2) {
-                name = name.split("/")[1];
-                if("pipelines.py".equals(name)){
-                    flag=true;
-                    break;
+        File zipFilePath=new File(zipPath);
+        if(zipFilePath.exists()){
+            FileInputStream input = new FileInputStream(zipPath);
+            //获取ZIP输入流(一定要指定字符集Charset.forName("GBK")否则会报java.lang.IllegalArgumentException: MALFORMED)
+            ZipInputStream zipInputStream = new ZipInputStream(new BufferedInputStream(input), Charset.forName("GBK"));
+            //定义ZipEntry置为null,避免由于重复调用zipInputStream.getNextEntry造成的不必要的问题
+            ZipEntry ze = null;
+            //循环遍历
+            while ((ze = zipInputStream.getNextEntry()) != null) {
+                String name = ze.getName();
+                if(name.split("/").length==2) {
+                    name = name.split("/")[1];
+                    if("pipelines.py".equals(name)){
+                        flag=true;
+                        break;
+                    }
                 }
             }
+            zipInputStream.closeEntry();
+            input.close();
         }
-        zipInputStream.closeEntry();
-        input.close();
         return flag;
     }
     /**
@@ -190,20 +171,14 @@ public class OperateZipsUtil {
      */
     public static void deleteFile(File file) {
         if (file.exists()) {
-            //判断是否是文件
             if (file.isFile()) {
-                //删除文件
                 file.delete();
-                //否则如果它是一个目录
             } else if (file.isDirectory()) {
-                //声明目录下所有的文件 files[];
                 File[] files = file.listFiles();
-                //遍历目录下所有的文件
                 for (int i = 0; i < files.length; i++) {
                     //把每个文件用这个方法进行迭代
                     deleteFile(files[i]);
                 }
-                //删除文件夹
                 file.delete();
             }
         } else {
@@ -319,6 +294,49 @@ public class OperateZipsUtil {
             }
         }
         return  str;
+    }
+    /**
+     * 获取spiderName
+     * @param basicPath
+     * @return
+     */
+    public static String getSpiderName(String basicPath) throws IOException {
+        String spidersFilePath=basicPath+"spiders";
+        File spidersFile=new File(spidersFilePath);
+        File[] spiderMainFile = spidersFile.listFiles();
+        String spiderMainFileName=null;
+        String fileText=null;
+        String spiderName=null;
+        for(File value:spiderMainFile){
+            if(!"__init__".equals(value.getName().split("\\.")[0])){
+                spiderMainFileName=value.getName();
+                FileReader fr = new FileReader(spidersFilePath+File.separator+spiderMainFileName);
+                BufferedReader br = new BufferedReader(fr);
+                while((fileText=br.readLine())!=null) {
+                    if(fileText.matches("(.*):(.*)")) {
+                        spiderName=br.readLine().trim().substring(8).split("\"")[0];
+                        break;
+                    }
+                }
+                fr.close();
+                br.close();
+                break;
+            }
+        }
+        return spiderName;
+    }
+
+    /**
+     * 获取需要更新的目标
+     * @param filePath
+     * @return
+     * @throws IOException
+     */
+    public static StringBuilder updateFileContent(String filePath,String targetContent,String updateContent) throws IOException {
+        String settingFile=new String(Files.readAllBytes(Paths.get(filePath)),"UTF-8");
+        String updateFile = settingFile.replaceAll(targetContent, updateContent);
+        StringBuilder sb=new StringBuilder(updateFile);
+        return sb;
     }
 }
 
